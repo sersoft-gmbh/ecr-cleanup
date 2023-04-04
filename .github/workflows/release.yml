@@ -29,6 +29,13 @@ jobs:
         run: |
           mkdir -p "./${OUTPUT_FOLDER}"
           go build -C "./cmd/${TOOL_NAME}" -o "$(pwd)/${OUTPUT_FOLDER}/${TOOL_NAME}"
+      - uses: thedoctor0/zip-release@0.7.1
+        with:
+          type: zip
+          directory: ${{ env.OUTPUT_FOLDER }}
+          path: ${{ env.TOOL_NAME }}
+          filename: ${{ env.TOOL_NAME }}-${{ matrix.os }}-${{ matrix.arch }}.zip
+          custom: '-9' # highest compression
       - name: Upload Release Artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -37,4 +44,4 @@ jobs:
           BUILT_ARCH: ${{ matrix.arch }}
         run: |
           gh release upload --clobber "${TAG_NAME}" \
-            "./${OUTPUT_FOLDER}/${TOOL_NAME}#${TOOL_NAME}-${BUILT_OS}-${BUILT_ARCH}"
+            "./${OUTPUT_FOLDER}/${TOOL_NAME}-${BUILT_OS}-${BUILT_ARCH}.zip"
