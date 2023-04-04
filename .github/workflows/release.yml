@@ -29,6 +29,7 @@ jobs:
         run: |
           mkdir -p "./${OUTPUT_FOLDER}"
           go build -C "./cmd/${TOOL_NAME}" -o "./${OUTPUT_FOLDER}/${TOOL_NAME}"
+          ls -al "./${OUTPUT_FOLDER}"
       - name: Upload Release Artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
