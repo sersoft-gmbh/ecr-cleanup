@@ -1,0 +1,40 @@
+name: Publish Release Artifacts
+
+on:
+  release:
+    types:
+      - published
+      - edited
+
+jobs:
+  build-and-publish:
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+    env:
+      TOOL_NAME: cleanup-ecr
+      OUTPUT_FOLDER: dist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Build
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p "./${OUTPUT_FOLDER}"
+          go build -C "./cmd/${TOOL_NAME}" -o "./${OUTPUT_FOLDER}"
+      - name: Upload Release Artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          BUILT_OS: ${{ matrix.os }}
+          BUILT_ARCH: ${{ matrix.arch }}
+        run: |
+          gh release upload --clobber "${TAG_NAME}" \
+            "./${OUTPUT_FOLDER}/${TOOL_NAME}#${TOOL_NAME}-${BUILT_OS}-${BUILT_ARCH}"
