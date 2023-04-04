@@ -28,7 +28,7 @@ jobs:
           GOARCH: ${{ matrix.arch }}
         run: |
           mkdir -p "./${OUTPUT_FOLDER}"
-          go build -C "./cmd/${TOOL_NAME}" -o "./${OUTPUT_FOLDER}"
+          go build -C "./cmd/${TOOL_NAME}" -o "./${OUTPUT_FOLDER}/${TOOL_NAME}"
       - name: Upload Release Artifacts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
