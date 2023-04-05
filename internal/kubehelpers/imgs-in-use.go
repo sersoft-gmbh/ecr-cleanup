@@ -77,7 +77,7 @@ func FindImagesInUse(ctx context.Context, config Config) ([]DockerImage, error) 
 	}
 
 	outputChannel := make(chan string)
-	errChannel := make(chan error, 1)
+	errChannel := make(chan error)
 	var wg sync.WaitGroup
 	runJob := func(job func() ([]string, error)) {
 		wg.Add(1)

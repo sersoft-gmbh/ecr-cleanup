@@ -183,8 +183,13 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 		return err
 	}
 
+	if len(relevantRepos) <= 0 {
+		println("No repositories found to clean!")
+		return nil
+	}
+
 	var wg sync.WaitGroup
-	errorChannel := make(chan error, 1)
+	errorChannel := make(chan error)
 
 	wg.Add(len(relevantRepos))
 	for _, repo := range relevantRepos {
@@ -199,6 +204,7 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 
 			imageHashesToDelete, imageTagsThatWillBeDeleted := deletionData(repo, images, imagesToKeep)
 			if len(imageHashesToDelete) <= 0 {
+				println("No images to delete in", *repo.RepositoryUri)
 				return
 			}
 
