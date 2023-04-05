@@ -78,9 +78,9 @@ func FindImagesInUse(ctx context.Context, config Config) ([]DockerImage, error) 
 
 	outputChannel := make(chan string)
 	errChannel := make(chan error, 1)
-	sendError := func(err error) {
+	sendError := func(errorChannel chan<- error, err error) {
 		select {
-		case errChannel <- err:
+		case errorChannel <- err:
 		default:
 			break
 		}
@@ -88,17 +88,17 @@ func FindImagesInUse(ctx context.Context, config Config) ([]DockerImage, error) 
 	var wg sync.WaitGroup
 	runJob := func(job func() ([]string, error)) {
 		wg.Add(1)
-		go func() {
+		go func(errorChannel chan<- error) {
 			defer wg.Done()
 			images, err := job()
 			if err != nil {
-				sendError(err)
+				sendError(errChannel, err)
 			} else {
 				for _, image := range images {
 					outputChannel <- image
 				}
 			}
-		}()
+		}(errChannel)
 	}
 	runJob(func() ([]string, error) {
 		return imagesInPods(ctx, clients, config.Namespace)

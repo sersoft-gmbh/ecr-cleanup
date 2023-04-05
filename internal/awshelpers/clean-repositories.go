@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
-	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
+	ecrTypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"k8s.io/utils/strings/slices"
 	"regexp"
 	"sort"
@@ -52,7 +52,7 @@ func min(a, b int) int {
 	return b
 }
 
-func relevantRepositories(ctx context.Context, config compiledConfig, client *ecr.Client) ([]types.Repository, error) {
+func relevantRepositories(ctx context.Context, config compiledConfig, client *ecr.Client) ([]ecrTypes.Repository, error) {
 	var registryId *string
 	if config.accountId != "" {
 		registryId = &config.accountId
@@ -61,7 +61,7 @@ func relevantRepositories(ctx context.Context, config compiledConfig, client *ec
 		RegistryId: registryId,
 	}, func(o *ecr.DescribeRepositoriesPaginatorOptions) { o.Limit = paginationLimit })
 
-	relevantRepositories := make([]types.Repository, 0)
+	relevantRepositories := make([]ecrTypes.Repository, 0)
 	for paginator.HasMorePages() {
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -76,13 +76,13 @@ func relevantRepositories(ctx context.Context, config compiledConfig, client *ec
 	return relevantRepositories, nil
 }
 
-func repositoryImages(ctx context.Context, client *ecr.Client, repo types.Repository) ([]types.ImageDetail, error) {
+func repositoryImages(ctx context.Context, client *ecr.Client, repo ecrTypes.Repository) ([]ecrTypes.ImageDetail, error) {
 	paginator := ecr.NewDescribeImagesPaginator(client, &ecr.DescribeImagesInput{
 		RegistryId:     repo.RegistryId,
 		RepositoryName: repo.RepositoryName,
 	}, func(o *ecr.DescribeImagesPaginatorOptions) { o.Limit = paginationLimit })
 
-	images := make([]types.ImageDetail, 0)
+	images := make([]ecrTypes.ImageDetail, 0)
 	for paginator.HasMorePages() {
 		output, err := paginator.NextPage(ctx)
 		if err != nil {
@@ -96,18 +96,11 @@ func repositoryImages(ctx context.Context, client *ecr.Client, repo types.Reposi
 	return images, nil
 }
 
-func deletionData(repo types.Repository, images []types.ImageDetail, imagesToKeep []AWSDockerImage) (hashes []string, tags []string) {
+func deletionData(repo ecrTypes.Repository, images []ecrTypes.ImageDetail, imagesToKeep []AWSDockerImage) (hashes []string, tags []string) {
 	imageHashesToDelete := make([]string, 0)
 	imageTagsThatWillBeDeleted := make([]string, 0)
 	for _, image := range images {
 		if slices.Contains(image.ImageTags, latestTag) || image.ImageDigest == nil || *image.ImageDigest == "" || slices.Contains(imageHashesToDelete, *image.ImageDigest) {
-			if image.ImageDigest == nil || *image.ImageDigest == "" {
-				println("Image without digest in repository", *repo.RepositoryName, "will not be deleted!")
-				println("Image pushed at:", image.ImagePushedAt.String())
-				println("Image artifact media type:", *image.ArtifactMediaType)
-				println("Image manifest media type:", *image.ImageManifestMediaType)
-				println("Image tags:", strings.Join(image.ImageTags, ", "))
-			}
 			continue
 		}
 		keep := false
@@ -129,12 +122,13 @@ func deletionData(repo types.Repository, images []types.ImageDetail, imagesToKee
 	return imageHashesToDelete, imageTagsThatWillBeDeleted
 }
 
-func deleteImages(ctx context.Context, client *ecr.Client, repo types.Repository, imageHashesToDelete []string, dryRun bool) error {
-	imageIdsToDelete := make([]types.ImageIdentifier, len(imageHashesToDelete))
+func deleteImages(ctx context.Context, client *ecr.Client, repo ecrTypes.Repository, imageHashesToDelete []string, dryRun bool) (int, error) {
+	imageIdsToDelete := make([]ecrTypes.ImageIdentifier, len(imageHashesToDelete))
 	// We need to iterate over indices here, because we borrow the pointer - which gets overridden in case of "range" iteration
 	for i := 0; i < len(imageHashesToDelete); i++ {
-		imageIdsToDelete[i] = types.ImageIdentifier{ImageDigest: &imageHashesToDelete[i]}
+		imageIdsToDelete[i] = ecrTypes.ImageIdentifier{ImageDigest: &imageHashesToDelete[i]}
 	}
+	totalCount := len(imageIdsToDelete)
 	for i := 0; i < len(imageIdsToDelete); i += deletionBatchSize {
 		end := min(i+deletionBatchSize, len(imageIdsToDelete))
 		if dryRun {
@@ -142,7 +136,7 @@ func deleteImages(ctx context.Context, client *ecr.Client, repo types.Repository
 			for j, hash := range imageIdsToDelete[i:end] {
 				imageHashes[j] = *hash.ImageDigest
 			}
-			println("Dry run: would delete the following image hashes in", *repo.RepositoryName, ":")
+			println("Dry run: would delete the following image hashes in" + *repo.RepositoryName + ":")
 			println(strings.Join(imageHashes, "\n"))
 		} else {
 			result, err := client.BatchDeleteImage(ctx, &ecr.BatchDeleteImageInput{
@@ -151,18 +145,34 @@ func deleteImages(ctx context.Context, client *ecr.Client, repo types.Repository
 				RegistryId:     repo.RegistryId,
 			})
 			if err != nil {
-				return err
+				totalCount -= len(imageIdsToDelete[i:end])
+				return totalCount, err
 			}
 			if len(result.Failures) > 0 {
-				failureMessage := "Failed to delete images: "
+				relevantFailures := make([]ecrTypes.ImageFailure, 0)
+				uniqueFailures := make(map[string]bool)
 				for _, failure := range result.Failures {
-					failureMessage += *failure.ImageId.ImageDigest + " "
+					// This is because we're pushing multi-arch images, and we might attempt to delete images that are still in use.
+					// FIXME: This is a terrible hack, and we should find a better way to handle this.
+					if failure.FailureCode != ecrTypes.ImageFailureCodeImageReferencedByManifestList {
+						relevantFailures = append(relevantFailures, failure)
+					}
+					if _, ok := uniqueFailures[*failure.ImageId.ImageDigest]; !ok {
+						totalCount--
+						uniqueFailures[*failure.ImageId.ImageDigest] = true
+					}
 				}
-				return errors.New(failureMessage)
+				if len(relevantFailures) > 0 {
+					failureMessage := "Failed to delete images in " + *repo.RepositoryName + ":"
+					for _, failure := range relevantFailures {
+						failureMessage += "\n" + *failure.ImageId.ImageDigest + " " + *failure.FailureReason
+					}
+					return totalCount, errors.New(failureMessage)
+				}
 			}
 		}
 	}
-	return nil
+	return totalCount, nil
 }
 
 func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWSDockerImage) error {
@@ -190,7 +200,7 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 
 	var wg sync.WaitGroup
 	errorChannel := make(chan error, 1)
-	sendError := func(err error) {
+	sendError := func(errorChannel chan<- error, err error) {
 		select {
 		case errorChannel <- err:
 		default:
@@ -200,15 +210,33 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 
 	wg.Add(len(relevantRepos))
 	for _, repo := range relevantRepos {
-		go func(repo types.Repository, errorChannel chan<- error) {
+		go func(repo ecrTypes.Repository, errorChannel chan<- error) {
 			defer wg.Done()
 			println("Processing repository", *repo.RepositoryUri)
 
 			images, err := repositoryImages(ctx, ecrClient, repo)
 			if err != nil {
-				sendError(err)
+				sendError(errorChannel, err)
 				return
 			}
+
+			//for _, image := range images {
+			//	println("Image in repository", *repo.RepositoryUri)
+			//	println("Image digest:", *image.ImageDigest)
+			//	println("Image tags:", strings.Join(image.ImageTags, ", "))
+			//	println("Image pushed at:", image.ImagePushedAt.String())
+			//	if image.ImageSizeInBytes != nil {
+			//		println("Image size:", *image.ImageSizeInBytes)
+			//	}
+			//	if image.ArtifactMediaType != nil {
+			//		println("Image artifact media type:", *image.ArtifactMediaType)
+			//	}
+			//	if image.ImageManifestMediaType != nil {
+			//		println("Image manifest media type:", *image.ImageManifestMediaType)
+			//	}
+			//	println("")
+			//}
+			//return
 
 			imageHashesToDelete, imageTagsThatWillBeDeleted := deletionData(repo, images, imagesToKeep)
 			if len(imageHashesToDelete) <= 0 {
@@ -216,13 +244,13 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 				return
 			}
 
-			err = deleteImages(ctx, ecrClient, repo, imageHashesToDelete, awsConfig.DryRun)
+			deletedCount, err := deleteImages(ctx, ecrClient, repo, imageHashesToDelete, awsConfig.DryRun)
 			if err != nil {
-				sendError(err)
+				sendError(errorChannel, err)
 				return
 			}
 
-			println("Deleted", len(imageHashesToDelete), "images from", *repo.RepositoryUri, "having the following tags:", strings.Join(imageTagsThatWillBeDeleted, ", "))
+			println("Deleted", deletedCount, "out of", len(imageHashesToDelete), "images from", *repo.RepositoryUri, "having the following tags:", strings.Join(imageTagsThatWillBeDeleted, ", "))
 		}(repo, errorChannel)
 	}
 
