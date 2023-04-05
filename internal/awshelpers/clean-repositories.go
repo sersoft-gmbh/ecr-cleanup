@@ -189,6 +189,8 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 	wg.Add(len(relevantRepos))
 	for _, repo := range relevantRepos {
 		go func(repo types.Repository, errorChannel chan<- error) {
+			defer wg.Done()
+
 			images, err := repositoryImages(ctx, ecrClient, repo)
 			if err != nil {
 				errorChannel <- err
@@ -207,7 +209,6 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 			}
 
 			println("Deleted", len(imageHashesToDelete), "images from", *repo.RepositoryUri, "having the following tags:", strings.Join(imageTagsThatWillBeDeleted, ", "))
-			wg.Done()
 		}(repo, errorChannel)
 	}
 
