@@ -22,4 +22,5 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0' # disable linking of glibc
         run: go build -C './cmd/cleanup-ecr'

@@ -26,6 +26,7 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: '0' # disable linking of glibc
         run: |
           mkdir -p "./${OUTPUT_FOLDER}"
           go build -C "./cmd/${TOOL_NAME}" -o "$(pwd)/${OUTPUT_FOLDER}/${TOOL_NAME}"
