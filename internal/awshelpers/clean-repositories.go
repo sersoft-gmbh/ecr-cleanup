@@ -189,16 +189,24 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 	}
 
 	var wg sync.WaitGroup
-	errorChannel := make(chan error)
+	errorChannel := make(chan error, 1)
+	sendError := func(err error) {
+		select {
+		case errorChannel <- err:
+		default:
+			break
+		}
+	}
 
 	wg.Add(len(relevantRepos))
 	for _, repo := range relevantRepos {
 		go func(repo types.Repository, errorChannel chan<- error) {
 			defer wg.Done()
+			println("Processing repository", *repo.RepositoryUri)
 
 			images, err := repositoryImages(ctx, ecrClient, repo)
 			if err != nil {
-				errorChannel <- err
+				sendError(err)
 				return
 			}
 
@@ -210,7 +218,7 @@ func CleanRepositories(ctx context.Context, awsConfig Config, imagesToKeep []AWS
 
 			err = deleteImages(ctx, ecrClient, repo, imageHashesToDelete, awsConfig.DryRun)
 			if err != nil {
-				errorChannel <- err
+				sendError(err)
 				return
 			}
 
