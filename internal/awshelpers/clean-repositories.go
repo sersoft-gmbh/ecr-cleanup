@@ -45,6 +45,13 @@ func (config Config) compile() (compiledConfig, error) {
 	}, nil
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func relevantRepositories(ctx context.Context, config compiledConfig, client *ecr.Client) ([]types.Repository, error) {
 	var registryId *string
 	if config.accountId != "" {
@@ -90,8 +97,8 @@ func repositoryImages(ctx context.Context, client *ecr.Client, repo types.Reposi
 }
 
 func deletionData(repo types.Repository, images []types.ImageDetail, imagesToKeep []AWSDockerImage) (hashes []string, tags []string) {
-	imageHashesToDelete := make([]string, 0, len(images)-2)
-	imageTagsThatWillBeDeleted := make([]string, 0, (len(images)-2)*2)
+	imageHashesToDelete := make([]string, 0)
+	imageTagsThatWillBeDeleted := make([]string, 0)
 	for _, image := range images {
 		if slices.Contains(image.ImageTags, latestTag) || image.ImageDigest == nil || *image.ImageDigest == "" || slices.Contains(imageHashesToDelete, *image.ImageDigest) {
 			if image.ImageDigest == nil || *image.ImageDigest == "" {
@@ -120,13 +127,6 @@ func deletionData(repo types.Repository, images []types.ImageDetail, imagesToKee
 		}
 	}
 	return imageHashesToDelete, imageTagsThatWillBeDeleted
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func deleteImages(ctx context.Context, client *ecr.Client, repo types.Repository, imageHashesToDelete []string, dryRun bool) error {
