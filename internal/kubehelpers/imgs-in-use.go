@@ -121,6 +121,10 @@ func FindImagesInUse(ctx context.Context, config Config) ([]DockerImage, error) 
 			continue
 		}
 		imageParts := strings.SplitN(image, ":", 2)
+		//if len(imageParts) != 2 {
+		//	println("Skipping image invalid: " + image)
+		//	continue
+		//}
 		var registry *string
 		var name string
 		if strings.Contains(imageParts[0], ".") {
