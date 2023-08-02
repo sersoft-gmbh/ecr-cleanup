@@ -23,3 +23,10 @@ updates:
       - ffried
     reviewers:
       - ffried
+    groups:
+      aws-sdk:
+        patterns:
+          - "github.com/aws/aws-sdk-go-v2/*"
+      kubernetes:
+        patterns:
+          - "k8s.io/*"
