@@ -26,7 +26,7 @@ func imagesInPods(ctx context.Context, clients *kubernetes.Clientset, namespace 
 		for _, status := range append(pod.Status.ContainerStatuses, append(pod.Status.InitContainerStatuses, pod.Status.EphemeralContainerStatuses...)...) {
 			if status.Ready || (status.Started != nil && *status.Started) || status.State.Running != nil || status.State.Waiting != nil {
 				if len(status.ImageID) == 0 {
-					println("Found invalid image in pod " + pod.Name + " with status name " + status.Name + " : " + status.ImageID)
+					println("Found invalid image in pod " + pod.Name + " with status " + status.State.String() + ": " + status.ImageID)
 					//continue
 				}
 				imagesInUse = append(imagesInUse, status.ImageID)
