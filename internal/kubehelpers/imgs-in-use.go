@@ -25,6 +25,10 @@ func imagesInPods(ctx context.Context, clients *kubernetes.Clientset, namespace 
 	for _, pod := range list.Items {
 		for _, status := range append(pod.Status.ContainerStatuses, append(pod.Status.InitContainerStatuses, pod.Status.EphemeralContainerStatuses...)...) {
 			if status.Ready || (status.Started != nil && *status.Started) || status.State.Running != nil || status.State.Waiting != nil {
+				if len(status.ImageID) == 0 {
+					println("Found invalid image in pod " + pod.Name + " with status name " + status.Name + " : " + status.ImageID)
+					//continue
+				}
 				imagesInUse = append(imagesInUse, status.ImageID)
 			}
 		}
@@ -32,11 +36,19 @@ func imagesInPods(ctx context.Context, clients *kubernetes.Clientset, namespace 
 	return imagesInUse, nil
 }
 
-func appendImagesInUseInSpec(imagesInUse *[]string, podSpec corev1.PodSpec) {
+func appendImagesInUseInSpec(specSource string, imagesInUse *[]string, podSpec corev1.PodSpec) {
 	for _, container := range append(podSpec.Containers, podSpec.InitContainers...) {
+		if len(container.Image) == 0 {
+			println("Found invalid image in container " + container.Name + " of " + specSource + ": " + container.Image)
+			//continue
+		}
 		*imagesInUse = append(*imagesInUse, container.Image)
 	}
 	for _, container := range podSpec.EphemeralContainers {
+		if len(container.Image) == 0 {
+			println("Found invalid image in ephemeral container " + container.Name + " of " + specSource + ": " + container.Image)
+			//continue
+		}
 		*imagesInUse = append(*imagesInUse, container.Image)
 	}
 }
@@ -48,7 +60,7 @@ func imagesInCronJobs(ctx context.Context, clients *kubernetes.Clientset, namesp
 	}
 	imagesInUse := make([]string, 0, len(list.Items))
 	for _, job := range list.Items {
-		appendImagesInUseInSpec(&imagesInUse, job.Spec.JobTemplate.Spec.Template.Spec)
+		appendImagesInUseInSpec("cron job "+job.Name+" ", &imagesInUse, job.Spec.JobTemplate.Spec.Template.Spec)
 	}
 	return imagesInUse, nil
 }
@@ -60,7 +72,7 @@ func imagesInDeployments(ctx context.Context, clients *kubernetes.Clientset, nam
 	}
 	imagesInUse := make([]string, 0, len(list.Items))
 	for _, deployment := range list.Items {
-		appendImagesInUseInSpec(&imagesInUse, deployment.Spec.Template.Spec)
+		appendImagesInUseInSpec("deployment "+deployment.Name+" ", &imagesInUse, deployment.Spec.Template.Spec)
 	}
 	return imagesInUse, nil
 }
