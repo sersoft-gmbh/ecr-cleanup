@@ -117,14 +117,15 @@ func FindImagesInUse(ctx context.Context, config Config) ([]DockerImage, error) 
 	processedImageStrings := make(map[string]bool)
 	imagesInUse := make([]DockerImage, 0)
 	for image := range outputChannel {
-		if _, ok := processedImageStrings[image]; ok {
+		if _, found := processedImageStrings[image]; found {
 			continue
 		}
 		imageParts := strings.SplitN(image, ":", 2)
-		//if len(imageParts) != 2 {
-		//	println("Skipping image invalid: " + image)
-		//	continue
-		//}
+		if len(imageParts) != 2 {
+			println("Found invalid image: " + image)
+			// We cannot skip these, or it might delete images that are in use.
+			// continue
+		}
 		var registry *string
 		var name string
 		if strings.Contains(imageParts[0], ".") {
