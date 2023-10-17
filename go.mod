@@ -3,7 +3,7 @@ module github.com/sersoft-gmbh/ecr-cleanup
 go 1.20
 
 require (
-	github.com/aws/aws-sdk-go-v2/config v1.18.45
+	github.com/aws/aws-sdk-go-v2/config v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.20.2
 	k8s.io/api v0.28.2
 	k8s.io/apimachinery v0.28.2
