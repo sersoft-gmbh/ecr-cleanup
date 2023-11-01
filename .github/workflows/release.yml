@@ -30,7 +30,7 @@ jobs:
         run: |
           mkdir -p "./${OUTPUT_FOLDER}"
           go build -C "./cmd/${TOOL_NAME}" -o "$(pwd)/${OUTPUT_FOLDER}/${TOOL_NAME}"
-      - uses: thedoctor0/zip-release@0.7.5
+      - uses: thedoctor0/zip-release@0.7.6
         with:
           type: zip
           directory: ${{ env.OUTPUT_FOLDER }}
