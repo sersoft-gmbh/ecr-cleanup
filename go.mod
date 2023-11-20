@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.25.1
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.22.2
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.23.0
 	k8s.io/api v0.28.4
 	k8s.io/apimachinery v0.28.4
 	k8s.io/client-go v0.28.4
