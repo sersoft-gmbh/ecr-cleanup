@@ -45,13 +45,6 @@ func (config Config) compile() (compiledConfig, error) {
 	}, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func relevantRepositories(ctx context.Context, config compiledConfig, client *ecr.Client) ([]ecrTypes.Repository, error) {
 	var registryId *string
 	if config.accountId != "" {
