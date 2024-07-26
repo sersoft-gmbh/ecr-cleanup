@@ -6,7 +6,7 @@ toolchain go1.22.3
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.27
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.30.3
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.31.0
 	k8s.io/api v0.30.3
 	k8s.io/apimachinery v0.30.3
 	k8s.io/client-go v0.30.3
