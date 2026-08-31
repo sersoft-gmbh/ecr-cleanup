@@ -3,14 +3,15 @@ package awshelpers
 import (
 	"context"
 	"errors"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ecr"
-	ecrTypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	"k8s.io/utils/strings/slices"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	ecrTypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 )
 
 const (
@@ -156,11 +157,12 @@ func deleteImages(ctx context.Context, client *ecr.Client, repo ecrTypes.Reposit
 					}
 				}
 				if len(relevantFailures) > 0 {
-					failureMessage := "Failed to delete images in " + *repo.RepositoryName + ":"
+					var failureMessage strings.Builder
+					failureMessage.WriteString("Failed to delete images in " + *repo.RepositoryName + ":")
 					for _, failure := range relevantFailures {
-						failureMessage += "\n" + *failure.ImageId.ImageDigest + " " + *failure.FailureReason
+						failureMessage.WriteString("\n" + *failure.ImageId.ImageDigest + " " + *failure.FailureReason)
 					}
-					return totalCount, errors.New(failureMessage)
+					return totalCount, errors.New(failureMessage.String())
 				}
 			}
 		}

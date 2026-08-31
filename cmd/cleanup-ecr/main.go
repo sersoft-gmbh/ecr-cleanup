@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"flag"
+	"strings"
+
 	"github.com/sersoft-gmbh/ecr-cleanup/internal/awshelpers"
 	"github.com/sersoft-gmbh/ecr-cleanup/internal/kubehelpers"
-	"strings"
 )
 
 type AWSDockerImg struct {

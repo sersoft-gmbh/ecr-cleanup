@@ -1,8 +1,9 @@
 package kubehelpers
 
 import (
-	"k8s.io/client-go/util/homedir"
 	"path/filepath"
+
+	"k8s.io/client-go/util/homedir"
 )
 
 type Config struct {
